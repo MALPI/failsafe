@@ -34,12 +34,16 @@ import net.jodah.failsafe.util.concurrent.Scheduler;
 public class Listeners<R> {
   /**
    * Called when an execution is aborted.
+   * <p>
+   * Note: Will only be called if a {@link RetryPolicy} is configured.
    */
   public void onAbort(R result, Throwable failure) {
   }
 
   /**
    * Called when an execution is aborted.
+   * <p>
+   * Note: Will only be called if a {@link RetryPolicy} is configured.
    */
   public void onAbort(R result, Throwable failure, ExecutionContext context) {
   }
@@ -83,18 +87,24 @@ public class Listeners<R> {
   /**
    * Called when an execution fails and the {@link RetryPolicy#withMaxRetries(int) max retry attempts} or
    * {@link RetryPolicy#withMaxDuration(long, java.util.concurrent.TimeUnit) max duration} are exceeded.
+   * <p>
+   * Note: Will only be called if a {@link RetryPolicy} is configured.
    */
   public void onRetriesExceeded(R result, Throwable failure) {
   }
 
   /**
    * Called before an execution is retried.
+   * <p>
+   * Note: Will only be called if a {@link RetryPolicy} is configured.
    */
   public void onRetry(R result, Throwable failure) {
   }
 
   /**
    * Called before an execution is retried.
+   * <p>
+   * Note: Will only be called if a {@link RetryPolicy} is configured.
    */
   public void onRetry(R result, Throwable failure, ExecutionContext context) {
   }

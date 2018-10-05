@@ -61,7 +61,7 @@ final class Functions {
           T result = callable.call(execution);
           return result;
         } catch (Throwable e) {
-          execution.completeOrRetry(null, e);
+          execution.complete(null, e);
           return null;
         }
       }
@@ -77,7 +77,7 @@ final class Functions {
           execution.before();
           runnable.run(execution);
         } catch (Throwable e) {
-          execution.completeOrRetry(null, e);
+          execution.complete(null, e);
         }
 
         return null;
@@ -93,10 +93,10 @@ final class Functions {
         try {
           execution.before();
           T result = callable.call();
-          execution.completeOrRetry(result, null);
+          execution.complete(result, null);
           return result;
         } catch (Throwable e) {
-          execution.completeOrRetry(null, e);
+          execution.complete(null, e);
           return null;
         }
       }
@@ -111,9 +111,9 @@ final class Functions {
         try {
           execution.before();
           runnable.run();
-          execution.completeOrRetry(null, null);
+          execution.complete(null, null);
         } catch (Throwable e) {
-          execution.completeOrRetry(null, e);
+          execution.complete(null, e);
         }
 
         return null;
@@ -129,10 +129,10 @@ final class Functions {
         try {
           execution.before();
           T result = callable.call(execution);
-          execution.completeOrRetry(result, null);
+          execution.complete(result, null);
           return result;
         } catch (Throwable e) {
-          execution.completeOrRetry(null, e);
+          execution.complete(null, e);
           return null;
         }
       }
@@ -147,9 +147,9 @@ final class Functions {
         try {
           execution.before();
           runnable.run(execution);
-          execution.completeOrRetry(null, null);
+          execution.complete(null, null);
         } catch (Throwable e) {
-          execution.completeOrRetry(null, e);
+          execution.complete(null, e);
         }
 
         return null;
@@ -173,7 +173,7 @@ final class Functions {
             public void accept(T innerResult, Throwable failure) {
               try {
                 if (failure != null)
-                  execution.completeOrRetry(innerResult,
+                  execution.complete(innerResult,
                       failure instanceof java.util.concurrent.CompletionException ? failure.getCause() : failure);
               } finally {
                 asyncFutureLock.release();
@@ -182,7 +182,7 @@ final class Functions {
           });
         } catch (Throwable e) {
           try {
-            execution.completeOrRetry(null, e);
+            execution.complete(null, e);
           } finally {
             asyncFutureLock.release();
           }
@@ -193,7 +193,8 @@ final class Functions {
     };
   }
 
-  static <T> AsyncCallableWrapper<T> asyncOfFuture(final Callable<? extends java.util.concurrent.CompletionStage<T>> callable) {
+  static <T> AsyncCallableWrapper<T> asyncOfFuture(
+      final Callable<? extends java.util.concurrent.CompletionStage<T>> callable) {
     Assert.notNull(callable, "callable");
     return new AsyncCallableWrapper<T>() {
       @Override
@@ -206,11 +207,11 @@ final class Functions {
               // Unwrap CompletionException cause
               if (failure != null && failure instanceof java.util.concurrent.CompletionException)
                 failure = failure.getCause();
-              execution.completeOrRetry(innerResult, failure);
+              execution.complete(innerResult, failure);
             }
           });
         } catch (Throwable e) {
-          execution.completeOrRetry(null, e);
+          execution.complete(null, e);
         }
 
         return null;
@@ -232,11 +233,11 @@ final class Functions {
               // Unwrap CompletionException cause
               if (failure != null && failure instanceof java.util.concurrent.CompletionException)
                 failure = failure.getCause();
-              execution.completeOrRetry(innerResult, failure);
+              execution.complete(innerResult, failure);
             }
           });
         } catch (Throwable e) {
-          execution.completeOrRetry(null, e);
+          execution.complete(null, e);
         }
 
         return null;

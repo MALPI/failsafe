@@ -15,11 +15,10 @@
  */
 package net.jodah.failsafe;
 
-import net.jodah.failsafe.function.BiPredicate;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
-import static org.testng.Assert.assertEquals;
+import net.jodah.failsafe.function.BiPredicate;
 
 @Test
 public class PredicatesTest {

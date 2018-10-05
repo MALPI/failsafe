@@ -40,7 +40,7 @@ public class ExecutionTest {
 
   public void testCanRetryForResult() {
     // Given retry for null
-    Execution exec = new Execution(new RetryPolicy().retryWhen(null));
+    Execution exec = new Execution().with(new RetryPolicy().retryWhen(null));
 
     // When / Then
     assertFalse(exec.complete(null));
@@ -54,7 +54,7 @@ public class ExecutionTest {
     assertNull(exec.getLastFailure());
 
     // Given 2 max retries
-    exec = new Execution(new RetryPolicy().retryWhen(null).withMaxRetries(2));
+    exec = new Execution().with(new RetryPolicy().retryWhen(null).withMaxRetries(2));
 
     // When / Then
     assertFalse(exec.complete(null));
@@ -70,7 +70,7 @@ public class ExecutionTest {
 
   public void testCanRetryForResultAndThrowable() {
     // Given retry for null
-    Execution exec = new Execution(new RetryPolicy().retryWhen(null));
+    Execution exec = new Execution().with(new RetryPolicy().retryWhen(null));
 
     // When / Then
     assertFalse(exec.complete(null));
@@ -83,7 +83,7 @@ public class ExecutionTest {
     assertTrue(exec.isComplete());
 
     // Given 2 max retries
-    exec = new Execution(new RetryPolicy().retryWhen(null).withMaxRetries(2));
+    exec = new Execution().with(new RetryPolicy().retryWhen(null).withMaxRetries(2));
 
     // When / Then
     assertFalse(exec.complete(null));
@@ -97,7 +97,7 @@ public class ExecutionTest {
 
   public void testCanRetryOn() {
     // Given retry on IllegalArgumentException
-    Execution exec = new Execution(new RetryPolicy().retryOn(IllegalArgumentException.class));
+    Execution exec = new Execution().with(new RetryPolicy().retryOn(IllegalArgumentException.class));
 
     // When / Then
     assertTrue(exec.canRetryOn(new IllegalArgumentException()));
@@ -110,7 +110,7 @@ public class ExecutionTest {
     assertEquals(exec.getLastFailure(), e);
 
     // Given 2 max retries
-    exec = new Execution(new RetryPolicy().withMaxRetries(2));
+    exec = new Execution().with(new RetryPolicy().withMaxRetries(2));
 
     // When / Then
     assertTrue(exec.canRetryOn(e));
@@ -126,7 +126,7 @@ public class ExecutionTest {
 
   public void testComplete() {
     // Given
-    Execution exec = new Execution(new RetryPolicy());
+    Execution exec = new Execution().with(new RetryPolicy());
 
     // When
     exec.complete();
@@ -140,7 +140,7 @@ public class ExecutionTest {
 
   public void testCompleteForResult() {
     // Given
-    Execution exec = new Execution(new RetryPolicy().retryWhen(null));
+    Execution exec = new Execution().with(new RetryPolicy().retryWhen(null));
 
     // When / Then
     assertFalse(exec.complete(null));
@@ -154,14 +154,14 @@ public class ExecutionTest {
   }
 
   public void testGetAttemptCount() {
-    Execution exec = new Execution(new RetryPolicy());
+    Execution exec = new Execution().with(new RetryPolicy());
     exec.recordFailure(e);
     exec.recordFailure(e);
     assertEquals(exec.getExecutions(), 2);
   }
 
   public void testGetElapsedMillis() throws Throwable {
-    Execution exec = new Execution(new RetryPolicy());
+    Execution exec = new Execution().with(new RetryPolicy());
     assertTrue(exec.getElapsedTime().toMillis() < 100);
     Thread.sleep(150);
     assertTrue(exec.getElapsedTime().toMillis() > 100);
@@ -173,7 +173,7 @@ public class ExecutionTest {
     when(list.size()).thenThrow(failures(2, new IllegalStateException())).thenReturn(5);
 
     RetryPolicy retryPolicy = new RetryPolicy().retryOn(IllegalStateException.class);
-    Execution exec = new Execution(retryPolicy);
+    Execution exec = new Execution().with(retryPolicy);
 
     while (!exec.isComplete()) {
       try {
@@ -188,7 +188,7 @@ public class ExecutionTest {
   }
 
   public void shouldAdjustWaitTimeForBackoff() {
-    Execution exec = new Execution(new RetryPolicy().withBackoff(1, 10, TimeUnit.NANOSECONDS));
+    Execution exec = new Execution().with(new RetryPolicy().withBackoff(1, 10, TimeUnit.NANOSECONDS));
     assertEquals(exec.getWaitTime().toNanos(), 0);
     exec.recordFailure(e);
     assertEquals(exec.getWaitTime().toNanos(), 1);
@@ -205,7 +205,7 @@ public class ExecutionTest {
   }
 
   public void shouldAdjustWaitTimeForComputedDelay() {
-    Execution exec = new Execution(
+    Execution exec = new Execution().with(
         new RetryPolicy().withDelay((r, f, ctx) -> new Duration(ctx.getExecutions() * 2, TimeUnit.NANOSECONDS)));
     assertEquals(exec.getWaitTime().toNanos(), 0);
     exec.recordFailure(e);
@@ -219,7 +219,7 @@ public class ExecutionTest {
   }
 
   public void shouldFallbackWaitTimeFromComputedToFixedDelay() {
-    Execution exec = new Execution(new RetryPolicy().withDelay(5, TimeUnit.NANOSECONDS).withDelay((r, f,
+    Execution exec = new Execution().with(new RetryPolicy().withDelay(5, TimeUnit.NANOSECONDS).withDelay((r, f,
         ctx) -> new Duration(ctx.getExecutions() % 2 == 0 ? ctx.getExecutions() * 2 : -1, TimeUnit.NANOSECONDS)));
     assertEquals(exec.getWaitTime().toNanos(), 0);
     exec.recordFailure(e);
@@ -237,7 +237,7 @@ public class ExecutionTest {
   }
 
   public void shouldFallbackWaitTimeFromComputedToBackoffDelay() {
-    Execution exec = new Execution(new RetryPolicy().withBackoff(1, 10, TimeUnit.NANOSECONDS).withDelay((r, f,
+    Execution exec = new Execution().with(new RetryPolicy().withBackoff(1, 10, TimeUnit.NANOSECONDS).withDelay((r, f,
         ctx) -> new Duration(ctx.getExecutions() % 2 == 0 ? ctx.getExecutions() * 2 : -1, TimeUnit.NANOSECONDS)));
     assertEquals(exec.getWaitTime().toNanos(), 0);
     exec.recordFailure(e);
@@ -257,7 +257,7 @@ public class ExecutionTest {
   }
 
   public void shouldAdjustWaitTimeForMaxDuration() throws Throwable {
-    Execution exec = new Execution(
+    Execution exec = new Execution().with(
         new RetryPolicy().withDelay(49, TimeUnit.MILLISECONDS).withMaxDuration(50, TimeUnit.MILLISECONDS));
     Thread.sleep(10);
     assertTrue(exec.canRetryOn(e));
@@ -265,7 +265,7 @@ public class ExecutionTest {
   }
 
   public void shouldSupportMaxDuration() throws Exception {
-    Execution exec = new Execution(new RetryPolicy().withMaxDuration(100, TimeUnit.MILLISECONDS));
+    Execution exec = new Execution().with(new RetryPolicy().withMaxDuration(100, TimeUnit.MILLISECONDS));
     assertTrue(exec.canRetryOn(e));
     assertTrue(exec.canRetryOn(e));
     Thread.sleep(105);
@@ -274,7 +274,7 @@ public class ExecutionTest {
   }
 
   public void shouldSupportMaxRetries() throws Exception {
-    Execution exec = new Execution(new RetryPolicy().withMaxRetries(3));
+    Execution exec = new Execution().with(new RetryPolicy().withMaxRetries(3));
     assertTrue(exec.canRetryOn(e));
     assertTrue(exec.canRetryOn(e));
     assertTrue(exec.canRetryOn(e));
@@ -283,7 +283,7 @@ public class ExecutionTest {
   }
 
   public void shouldGetWaitMillis() throws Throwable {
-    Execution exec = new Execution(new RetryPolicy()
+    Execution exec = new Execution().with(new RetryPolicy()
         .withDelay(100, TimeUnit.MILLISECONDS)
         .withMaxDuration(101, TimeUnit.MILLISECONDS)
         .retryWhen(null));
@@ -297,14 +297,14 @@ public class ExecutionTest {
 
   @Test(expectedExceptions = IllegalStateException.class)
   public void shouldThrowOnMultipleCompletes() {
-    Execution exec = new Execution(new RetryPolicy());
+    Execution exec = new Execution().with(new RetryPolicy());
     exec.complete();
     exec.complete();
   }
 
   @Test(expectedExceptions = IllegalStateException.class)
   public void shouldThrowOnCanRetryWhenAlreadyComplete() {
-    Execution exec = new Execution(new RetryPolicy());
+    Execution exec = new Execution().with(new RetryPolicy());
     exec.complete();
     exec.canRetryOn(e);
   }

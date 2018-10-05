@@ -209,7 +209,8 @@ public class SyncFailsafeTest extends AbstractFailsafeTest {
     when(service.connect()).thenThrow(failures(20, new ConnectException())).thenReturn(true);
 
     // When
-    assertThrows(() -> Failsafe.with(retryAlways).with(circuit).run(() -> service.connect()),
+    assertThrows(
+        () -> Failsafe.with(circuit).with(retryAlways.retryOn(ConnectException.class)).run(() -> service.connect()),
         CircuitBreakerOpenException.class);
 
     // Then

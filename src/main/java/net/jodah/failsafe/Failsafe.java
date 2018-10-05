@@ -15,6 +15,7 @@
  */
 package net.jodah.failsafe;
 
+import net.jodah.failsafe.function.CheckedBiFunction;
 import net.jodah.failsafe.internal.util.Assert;
 
 /**
@@ -43,5 +44,15 @@ public class Failsafe {
    */
   public static <T> SyncFailsafe<T> with(CircuitBreaker circuitBreaker) {
     return new SyncFailsafe<T>(Assert.notNull(circuitBreaker, "circuitBreaker"));
+  }
+
+  /**
+   * Configures the {@code fallback} result to be returned if execution fails.
+   * 
+   * @throws NullPointerException if {@code fallback} is null
+   */
+  @SuppressWarnings({ "rawtypes", "unchecked" })
+  public static <T> SyncFailsafe<T> withFallback(T fallback) {
+    return new SyncFailsafe<T>().withFallback((CheckedBiFunction) Functions.fnOf(Assert.notNull(fallback, "fallback")));
   }
 }

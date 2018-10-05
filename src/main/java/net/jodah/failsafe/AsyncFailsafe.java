@@ -16,13 +16,10 @@
 package net.jodah.failsafe;
 
 import java.util.concurrent.Callable;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 
 import net.jodah.failsafe.Functions.AsyncCallableWrapper;
 import net.jodah.failsafe.function.AsyncCallable;
 import net.jodah.failsafe.function.AsyncRunnable;
-import net.jodah.failsafe.function.CheckedBiFunction;
 import net.jodah.failsafe.function.CheckedRunnable;
 import net.jodah.failsafe.function.ContextualCallable;
 import net.jodah.failsafe.function.ContextualRunnable;
@@ -140,7 +137,7 @@ public class AsyncFailsafe<R> extends AsyncFailsafeConfig<R, AsyncFailsafe<R>> {
    * @throws NullPointerException if the {@code runnable} is null
    */
   public FailsafeFuture<Void> run(CheckedRunnable runnable) {
-    return call(Functions.<Void> asyncOf(runnable), null);
+    return call(Functions.<Void>asyncOf(runnable), null);
   }
 
   /**
@@ -153,7 +150,7 @@ public class AsyncFailsafe<R> extends AsyncFailsafeConfig<R, AsyncFailsafe<R>> {
    * @throws NullPointerException if the {@code runnable} is null
    */
   public FailsafeFuture<Void> run(ContextualRunnable runnable) {
-    return call(Functions.<Void> asyncOf(runnable), null);
+    return call(Functions.<Void>asyncOf(runnable), null);
   }
 
   /**
@@ -167,7 +164,7 @@ public class AsyncFailsafe<R> extends AsyncFailsafeConfig<R, AsyncFailsafe<R>> {
    * @throws NullPointerException if the {@code runnable} is null
    */
   public FailsafeFuture<Void> runAsync(AsyncRunnable runnable) {
-    return call(Functions.<Void> asyncOf(runnable), null);
+    return call(Functions.<Void>asyncOf(runnable), null);
   }
 
   /**
@@ -202,23 +199,14 @@ public class AsyncFailsafe<R> extends AsyncFailsafeConfig<R, AsyncFailsafe<R>> {
     if (future == null)
       future = new FailsafeFuture<T>((FailsafeConfig<T, ?>) this);
 
-    if (circuitBreaker != null && !circuitBreaker.allowsExecution()) {
-      CircuitBreakerOpenException e = new CircuitBreakerOpenException();
-      future.complete(null, e, (CheckedBiFunction<T, Throwable, T>) fallback, false);
-      return future;
-    }
-
     AsyncExecution execution = new AsyncExecution(callable, scheduler, future, (FailsafeConfig<Object, ?>) this);
+    // if (execution.preExecuteCheck() != null)
+    // return future;
+
     callable.inject(execution);
     future.inject(execution);
 
-    try {
-      future.inject((Future<T>) scheduler.schedule(callable, 0, TimeUnit.MILLISECONDS));
-    } catch (Throwable t) {
-      handleComplete(null, t, execution, false);
-      future.complete(null, t, (CheckedBiFunction<T, Throwable, T>) fallback, false);
-    }
-
+    ((FailsafeExecutor<T>) execution.executor).executeAsync(null, scheduler, future);
     return future;
   }
 }

@@ -15,39 +15,35 @@
  */
 package net.jodah.failsafe;
 
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
-import net.jodah.failsafe.RetryPolicy.DelayFunction;
+import net.jodah.failsafe.FailsafeExecutor.PolicyResult;
 import net.jodah.failsafe.internal.util.Assert;
 import net.jodah.failsafe.util.Duration;
 
 abstract class AbstractExecution extends ExecutionContext {
   final FailsafeConfig<Object, ?> config;
-  final RetryPolicy retryPolicy;
-  final CircuitBreaker circuitBreaker;
+  final FailsafeExecutor<Object> executor;
 
-  // Mutable state
+  // Internally mutable state
   long attemptStartTime;
   volatile Object lastResult;
   volatile Throwable lastFailure;
-  volatile boolean completed;
-  volatile boolean retriesExceeded;
-  volatile boolean success;
-  /** The fixed, backoff, random or computed delay time in nanoseconds. */
-  private volatile long delayNanos = -1;
-  /** The wait time, which is the delay time adjusted for jitter and max duration, in nanoseconds. */
+
+  // Externally mutable state
+  /** The wait time in nanoseconds. */
   volatile long waitNanos;
+  volatile boolean completed;
+  volatile boolean success;
 
   /**
-   * Creates a new Execution for the {@code retryPolicy} and {@code circuitBreaker}.
-   * 
-   * @throws NullPointerException if {@code retryPolicy} is null
+   * Creates a new Execution for the {@code config}.
    */
-  AbstractExecution(FailsafeConfig<Object, ?> config) {
+  AbstractExecution(Callable<Object> callable, FailsafeConfig<Object, ?> config) {
     super(new Duration(System.nanoTime(), TimeUnit.NANOSECONDS));
     this.config = config;
-    retryPolicy = config.retryPolicy;
-    this.circuitBreaker = config.circuitBreaker;
+    this.executor = new FailsafeExecutor<Object>(this, config, callable);
   }
 
   /**
@@ -81,111 +77,18 @@ abstract class AbstractExecution extends ExecutionContext {
   }
 
   void before() {
-    if (circuitBreaker != null)
-      circuitBreaker.before();
     attemptStartTime = System.nanoTime();
   }
 
   /**
-   * Records and attempts to complete the execution, returning true if complete else false.
+   * Records an execution attempt.
    * 
    * @throws IllegalStateException if the execution is already complete
    */
-  @SuppressWarnings("unchecked")
-  boolean complete(Object result, Throwable failure, boolean checkArgs) {
+  void record(PolicyResult<Object> policyResult) {
     Assert.state(!completed, "Execution has already been completed");
     executions++;
-    lastResult = result;
-    lastFailure = failure;
-    long elapsedNanos = getElapsedTime().toNanos();
-
-    // Record the execution with the circuit breaker
-    if (circuitBreaker != null) {
-      Duration timeout = circuitBreaker.getTimeout();
-      boolean timeoutExceeded = timeout != null && elapsedNanos >= timeout.toNanos();
-      if (circuitBreaker.isFailure(result, failure) || timeoutExceeded)
-        circuitBreaker.recordFailure();
-      else
-        circuitBreaker.recordSuccess();
-    }
-
-    // Determine the computed delay
-    long computedDelayNanos = -1;
-    DelayFunction<Object, Throwable> delayFunction = (DelayFunction<Object, Throwable>) retryPolicy.getDelayFn();
-    if (delayFunction != null && retryPolicy.canApplyDelayFn(result, failure)) {
-      Duration computedDelay = delayFunction.computeDelay(result, failure, this);
-      if (computedDelay != null && computedDelay.toNanos() >= 0)
-        computedDelayNanos = computedDelay.toNanos();
-    }
-
-    // Determine the non-computed delay
-    if (computedDelayNanos == -1) {
-      Duration delay = retryPolicy.getDelay();
-      Duration delayMin = retryPolicy.getDelayMin();
-      Duration delayMax = retryPolicy.getDelayMax();
-
-      if (delayNanos == -1 && delay != null && !delay.equals(Duration.NONE))
-        delayNanos = delay.toNanos();
-      else if (delayMin != null && delayMax != null)
-        delayNanos = randomDelayInRange(delayMin.toNanos(), delayMin.toNanos(), Math.random());
-
-      // Adjust for backoff
-      if (executions != 1 && retryPolicy.getMaxDelay() != null)
-        delayNanos = (long) Math.min(delayNanos * retryPolicy.getDelayFactor(), retryPolicy.getMaxDelay().toNanos());
-    }
-
-    waitNanos = computedDelayNanos != -1 ? computedDelayNanos : delayNanos;
-
-    // Adjust the wait time for jitter
-    if (retryPolicy.getJitter() != null)
-      waitNanos = randomDelay(waitNanos, retryPolicy.getJitter().toNanos(), Math.random());
-    else if (retryPolicy.getJitterFactor() > 0.0)
-      waitNanos = randomDelay(waitNanos, retryPolicy.getJitterFactor(), Math.random());
-
-    // Adjust the wait time for max duration
-    if (retryPolicy.getMaxDuration() != null) {
-      long maxRemainingWaitTime = retryPolicy.getMaxDuration().toNanos() - elapsedNanos;
-      waitNanos = Math.min(waitNanos, maxRemainingWaitTime < 0 ? 0 : maxRemainingWaitTime);
-      if (waitNanos < 0)
-        waitNanos = 0;
-    }
-
-    boolean maxRetriesExceeded = retryPolicy.getMaxRetries() != -1 && executions > retryPolicy.getMaxRetries();
-    boolean maxDurationExceeded = retryPolicy.getMaxDuration() != null
-        && elapsedNanos > retryPolicy.getMaxDuration().toNanos();
-    retriesExceeded = maxRetriesExceeded || maxDurationExceeded;
-    boolean isAbortable = retryPolicy.canAbortFor(result, failure);
-    boolean isRetryable = retryPolicy.canRetryFor(result, failure);
-    boolean shouldRetry = !retriesExceeded && checkArgs && !isAbortable && retryPolicy.allowsRetries() && isRetryable;
-    completed = isAbortable || !shouldRetry;
-    success = completed && !isAbortable && !isRetryable && failure == null;
-
-    // Call listeners
-    if (!success)
-      config.handleFailedAttempt(result, failure, this);
-    if (isAbortable)
-      config.handleAbort(result, failure, this);
-    else {
-      if (!success && retriesExceeded)
-        config.handleRetriesExceeded(result, failure, this);
-      if (completed)
-        config.handleComplete(result, failure, this, success);
-    }
-
-    return completed;
-  }
-
-  static long randomDelayInRange(long delayMin, long delayMax, double random) {
-    return (long) (random * (delayMax - delayMin)) + delayMin;
-  }
-
-  static long randomDelay(long delay, long jitter, double random) {
-    double randomAddend = (1 - random * 2) * jitter;
-    return (long) (delay + randomAddend);
-  }
-
-  static long randomDelay(long delay, double jitterFactor, double random) {
-    double randomFactor = 1 + (1 - random * 2) * jitterFactor;
-    return (long) (delay * randomFactor);
+    lastResult = policyResult.noResult ? null : policyResult.result;
+    lastFailure = policyResult.failure;
   }
 }

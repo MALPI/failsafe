@@ -18,6 +18,7 @@ package net.jodah.failsafe;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ScheduledExecutorService;
 
+import net.jodah.failsafe.FailsafeExecutor.PolicyResult;
 import net.jodah.failsafe.Functions.ContextualCallableWrapper;
 import net.jodah.failsafe.function.CheckedRunnable;
 import net.jodah.failsafe.function.ContextualCallable;
@@ -35,12 +36,15 @@ import net.jodah.failsafe.util.concurrent.Schedulers;
  * @param <R> listener result type
  */
 public class SyncFailsafe<R> extends FailsafeConfig<R, SyncFailsafe<R>> {
+  SyncFailsafe() {
+  }
+
   SyncFailsafe(CircuitBreaker circuitBreaker) {
-    this.circuitBreaker = circuitBreaker;
+    policies.add(circuitBreaker);
   }
 
   SyncFailsafe(RetryPolicy retryPolicy) {
-    this.retryPolicy = retryPolicy;
+    policies.add(retryPolicy);
   }
 
   /**
@@ -122,60 +126,16 @@ public class SyncFailsafe<R> extends FailsafeConfig<R, SyncFailsafe<R>> {
    */
   @SuppressWarnings("unchecked")
   private <T> T call(Callable<T> callable) {
-    Execution execution = new Execution((FailsafeConfig<Object, ?>) this);
+    Execution execution = new Execution((Callable<Object>) callable, (FailsafeConfig<Object, ?>) this);
 
     // Handle contextual calls
     if (callable instanceof ContextualCallableWrapper)
       ((ContextualCallableWrapper<T>) callable).inject(execution);
 
-    T result = null;
-    Throwable failure;
-
-    while (true) {
-      if (circuitBreaker != null && !circuitBreaker.allowsExecution()) {
-        CircuitBreakerOpenException e = new CircuitBreakerOpenException();
-        if (fallback != null)
-          return fallbackFor((R) result, e);
-        throw e;
-      }
-
-      try {
-        execution.before();
-        failure = null;
-        result = callable.call();
-      } catch (Throwable t) {
-        // Re-throw nested execution interruptions
-        if (t instanceof FailsafeException && InterruptedException.class.isInstance(t.getCause()))
-          throw (FailsafeException) t;
-        failure = t;
-      }
-
-      // Attempt to complete execution
-      if (execution.complete(result, failure, true)) {
-        if (execution.success || (failure == null && fallback == null))
-          return result;
-        if (fallback != null)
-          return fallbackFor((R) result, failure);
-        throw failure instanceof RuntimeException ? (RuntimeException) failure : new FailsafeException(failure);
-      } else {
-        try {
-          Thread.sleep(execution.getWaitTime().toMillis());
-        } catch (InterruptedException e) {
-          Thread.currentThread().interrupt();
-          throw new FailsafeException(e);
-        }
-
-        handleRetry((R) result, failure, execution);
-      }
-    }
-  }
-
-  @SuppressWarnings("unchecked")
-  private <T> T fallbackFor(R result, Throwable failure) {
-    try {
-      return (T) fallback.apply(result, failure);
-    } catch (Exception e) {
-      throw e instanceof RuntimeException ? (RuntimeException) e : new FailsafeException(e);
-    }
+    PolicyResult<T> result = (PolicyResult<T>) execution.executor.executeSync();
+    if (result.failure != null)
+      throw result.failure instanceof RuntimeException ? (RuntimeException) result.failure
+          : new FailsafeException(result.failure);
+    return result.result;
   }
 }

@@ -21,7 +21,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import net.jodah.failsafe.function.CheckedBiFunction;
 import net.jodah.failsafe.internal.util.Assert;
 import net.jodah.failsafe.internal.util.ReentrantCircuit;
 
@@ -74,7 +73,7 @@ public class FailsafeFuture<T> implements Future<T> {
     failure = new CancellationException();
     cancelled = true;
     config.handleComplete(null, failure, execution, false);
-    complete(null, failure, config.fallback, false);
+    complete(null, failure, false);
     return cancelResult;
   }
 
@@ -144,22 +143,12 @@ public class FailsafeFuture<T> implements Future<T> {
     return done;
   }
 
-  synchronized void complete(T result, Throwable failure, CheckedBiFunction<T, Throwable, T> fallback,
-      boolean success) {
+  synchronized void complete(T result, Throwable failure, boolean success) {
     if (done)
       return;
 
-    if (success || fallback == null) {
-      this.result = result;
-      this.failure = failure;
-    } else {
-      try {
-        this.result = fallback.apply(result, failure);
-      } catch (Throwable fallbackFailure) {
-        this.failure = fallbackFailure;
-      }
-    }
-
+    this.result = result;
+    this.failure = failure;
     done = true;
     if (completableFuture != null)
       completeFuture();

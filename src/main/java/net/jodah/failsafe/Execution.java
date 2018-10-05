@@ -15,6 +15,9 @@
  */
 package net.jodah.failsafe;
 
+import java.util.concurrent.Callable;
+
+import net.jodah.failsafe.FailsafeExecutor.PolicyResult;
 import net.jodah.failsafe.internal.util.Assert;
 
 /**
@@ -24,35 +27,36 @@ import net.jodah.failsafe.internal.util.Assert;
  */
 public class Execution extends AbstractExecution {
   /**
+   * Creates a new Execution.
+   */
+  public Execution() {
+    super(null, new FailsafeConfig<Object, FailsafeConfig<Object, ?>>());
+  }
+
+  /**
    * Creates a new Execution for the {@code circuitBreaker}.
    * 
    * @throws NullPointerException if {@code circuitBreaker} is null
+   * @deprecated Use {@link #Execution()} and {@link #with(CircuitBreaker)} instead
    */
   public Execution(CircuitBreaker circuitBreaker) {
-    super(new FailsafeConfig<Object, FailsafeConfig<Object, ?>>().with(circuitBreaker));
+    this();
+    with(circuitBreaker);
   }
 
   /**
    * Creates a new Execution for the {@code retryPolicy}.
    * 
    * @throws NullPointerException if {@code retryPolicy} is null
+   * @deprecated Use {@link #Execution()} and {@link #with(RetryPolicy)} instead
    */
   public Execution(RetryPolicy retryPolicy) {
-    super(new FailsafeConfig<Object, FailsafeConfig<Object, ?>>().with(retryPolicy));
+    this();
+    with(retryPolicy);
   }
 
-  /**
-   * Creates a new Execution for the {@code retryPolicy} and {@code circuitBreaker}.
-   * 
-   * @throws NullPointerException if {@code retryPolicy} or {@code circuitBreaker} are null
-   */
-  public Execution(RetryPolicy retryPolicy, CircuitBreaker circuitBreaker) {
-    super(new FailsafeConfig<Object, FailsafeConfig<Object, FailsafeConfig<Object, ?>>>().with(retryPolicy)
-        .with(circuitBreaker));
-  }
-
-  Execution(FailsafeConfig<Object, ?> config) {
-    super(config);
+  Execution(Callable<Object> callable, FailsafeConfig<Object, ?> config) {
+    super(callable, config);
   }
 
   /**
@@ -62,7 +66,7 @@ public class Execution extends AbstractExecution {
    * @throws IllegalStateException if the execution is already complete
    */
   public boolean canRetryFor(Object result) {
-    return !complete(result, null, true);
+    return !complete(result, null, false);
   }
 
   /**
@@ -72,7 +76,7 @@ public class Execution extends AbstractExecution {
    * @throws IllegalStateException if the execution is already complete
    */
   public boolean canRetryFor(Object result, Throwable failure) {
-    return !complete(result, failure, true);
+    return !complete(result, failure, false);
   }
 
   /**
@@ -84,7 +88,7 @@ public class Execution extends AbstractExecution {
    */
   public boolean canRetryOn(Throwable failure) {
     Assert.notNull(failure, "failure");
-    return !complete(null, failure, true);
+    return !complete(null, failure, false);
   }
 
   /**
@@ -93,7 +97,7 @@ public class Execution extends AbstractExecution {
    * @throws IllegalStateException if the execution is already complete
    */
   public void complete() {
-    complete(null, null, false);
+    complete(null, null, true);
   }
 
   /**
@@ -103,7 +107,7 @@ public class Execution extends AbstractExecution {
    * @throws IllegalStateException if the execution is already complete
    */
   public boolean complete(Object result) {
-    return complete(result, null, true);
+    return complete(result, null, false);
   }
 
   /**
@@ -118,5 +122,44 @@ public class Execution extends AbstractExecution {
    */
   public boolean recordFailure(Throwable failure) {
     return canRetryOn(failure);
+  }
+
+  /**
+   * Configures the {@code circuitBreaker} to be used to control the rate of event execution.
+   * 
+   * @throws IllegalStateException if a {@link CircuitBreaker} has already been configured
+   * @throws NullPointerException if {@code circuitBreaker} is null
+   */
+  public synchronized Execution with(CircuitBreaker circuitBreaker) {
+    Assert.state(!config.policies.contains(CircuitBreaker.class),
+        "A CircuitBreaker has already been configured for the Execution");
+    config.with(circuitBreaker);
+    executor.addPolicy(circuitBreaker);
+    return this;
+  }
+
+  /**
+   * Configures the {@code retryPolicy} to be used for retrying failed executions.
+   * 
+   * @throws IllegalStateException if a {@link RetryPolicy} has already been configured
+   * @throws NullPointerException if {@code retryPolicy} is null
+   */
+  public synchronized Execution with(RetryPolicy retryPolicy) {
+    Assert.state(!config.policies.contains(RetryPolicy.class),
+        "A RetryPolicy has already been configured for the Execution");
+    config.with(retryPolicy);
+    executor.addPolicy(retryPolicy);
+    return this;
+  }
+
+  /**
+   * Records and attempts to complete the execution, returning true if complete else false.
+   * 
+   * @throws IllegalStateException if the execution is already complete
+   */
+  synchronized boolean complete(Object result, Throwable failure, boolean noResult) {
+    PolicyResult<Object> pr = new PolicyResult<Object>(result, failure, noResult, false);
+    executor.postExecute(pr);
+    return completed;
   }
 }

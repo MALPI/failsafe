@@ -22,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import net.jodah.failsafe.FailsafeExecutor.PolicyExecutor;
 import net.jodah.failsafe.function.BiPredicate;
 import net.jodah.failsafe.function.CheckedRunnable;
 import net.jodah.failsafe.function.Predicate;
@@ -39,7 +40,7 @@ import net.jodah.failsafe.util.Ratio;
  * 
  * @author Jonathan Halterman
  */
-public class CircuitBreaker {
+public class CircuitBreaker extends FailsafePolicy {
   /** Writes guarded by "this" */
   private final AtomicReference<CircuitState> state = new AtomicReference<CircuitState>();
   private final AtomicInteger currentExecutions = new AtomicInteger();
@@ -108,8 +109,8 @@ public class CircuitBreaker {
   }
 
   /**
-   * Specifies that a failure should be recorded if the {@code resultPredicate} matches the result.
-   * Predicate is not invoked when the operation fails.
+   * Specifies that a failure should be recorded if the {@code resultPredicate} matches the result. Predicate is not
+   * invoked when the operation fails.
    *
    * @throws NullPointerException if {@code resultPredicate} is null
    */
@@ -127,9 +128,9 @@ public class CircuitBreaker {
   @SuppressWarnings({ "unchecked", "rawtypes" })
   public CircuitBreaker failOn(Class<? extends Throwable> failure) {
     Assert.notNull(failure, "failure");
-    return failOn((List)Arrays.asList(failure));
+    return failOn((List) Arrays.asList(failure));
   }
-  
+
   /**
    * Specifies the types to fail on. Applies to any type that is assignable from the {@code failures}.
    * 
@@ -485,5 +486,10 @@ public class CircuitBreaker {
       } catch (Exception ignore) {
       }
     }
+  }
+
+  @Override
+  PolicyExecutor<?> toExecutor() {
+    return PolicyExecutor.of(this);
   }
 }

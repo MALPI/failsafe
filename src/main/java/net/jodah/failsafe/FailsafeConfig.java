@@ -16,6 +16,7 @@
 package net.jodah.failsafe;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -23,9 +24,9 @@ import java.util.concurrent.ExecutorService;
 import net.jodah.failsafe.event.ContextualResultListener;
 import net.jodah.failsafe.function.CheckedBiConsumer;
 import net.jodah.failsafe.function.CheckedBiFunction;
-import net.jodah.failsafe.function.CheckedRunnable;
 import net.jodah.failsafe.function.CheckedConsumer;
 import net.jodah.failsafe.function.CheckedFunction;
+import net.jodah.failsafe.function.CheckedRunnable;
 import net.jodah.failsafe.internal.util.Assert;
 
 /**
@@ -37,18 +38,17 @@ import net.jodah.failsafe.internal.util.Assert;
  */
 @SuppressWarnings("unchecked")
 public class FailsafeConfig<R, F> {
-  RetryPolicy retryPolicy = RetryPolicy.NEVER;
-  CircuitBreaker circuitBreaker;
-  CheckedBiFunction<R, Throwable, R> fallback;
+  List<FailsafePolicy> policies;
+  FailsafePolicy fallback;
   Listeners<R> listeners;
   ListenerRegistry<R> listenerRegistry;
 
   FailsafeConfig() {
+    policies = new ArrayList<FailsafePolicy>(4);
   }
 
   FailsafeConfig(FailsafeConfig<R, ?> config) {
-    retryPolicy = config.retryPolicy;
-    circuitBreaker = config.circuitBreaker;
+    policies = config.policies;
     fallback = config.fallback;
     listeners = config.listeners;
     listenerRegistry = config.listenerRegistry;
@@ -121,7 +121,7 @@ public class FailsafeConfig<R, F> {
    * Registers the {@code listener} to be called when an execution is aborted.
    */
   public F onAbort(CheckedConsumer<? extends Throwable> listener) {
-    registry().abort().add(Listeners.<R>of(listener));
+    registry().abort().add(Listeners.<R> of(listener));
     return (F) this;
   }
 
@@ -145,7 +145,7 @@ public class FailsafeConfig<R, F> {
    * Registers the {@code listener} to be called asynchronously on the {@code executor} when an execution is aborted.
    */
   public F onAbortAsync(CheckedConsumer<? extends Throwable> listener, ExecutorService executor) {
-    registry().abort().add(Listeners.of(Listeners.<R>of(listener), Assert.notNull(executor, "executor"), null));
+    registry().abort().add(Listeners.of(Listeners.<R> of(listener), Assert.notNull(executor, "executor"), null));
     return (F) this;
   }
 
@@ -202,7 +202,7 @@ public class FailsafeConfig<R, F> {
    * Registers the {@code listener} to be called when an execution attempt fails.
    */
   public F onFailedAttempt(CheckedConsumer<? extends Throwable> listener) {
-    registry().failedAttempt().add(Listeners.<R>of(listener));
+    registry().failedAttempt().add(Listeners.<R> of(listener));
     return (F) this;
   }
 
@@ -227,7 +227,9 @@ public class FailsafeConfig<R, F> {
    * Registers the {@code listener} to be called asynchronously on the {@code executor} when an execution attempt fails.
    */
   public F onFailedAttemptAsync(CheckedConsumer<? extends Throwable> listener, ExecutorService executor) {
-    registry().failedAttempt().add(Listeners.of(Listeners.<R>of(listener), Assert.notNull(executor, "executor"), null));
+    registry()
+        .failedAttempt()
+        .add(Listeners.of(Listeners.<R> of(listener), Assert.notNull(executor, "executor"), null));
     return (F) this;
   }
 
@@ -252,7 +254,7 @@ public class FailsafeConfig<R, F> {
    * Registers the {@code listener} to be called when an execution fails and cannot be retried.
    */
   public F onFailure(CheckedConsumer<? extends Throwable> listener) {
-    registry().failure().add(Listeners.<R>of(listener));
+    registry().failure().add(Listeners.<R> of(listener));
     return (F) this;
   }
 
@@ -278,7 +280,7 @@ public class FailsafeConfig<R, F> {
    * cannot be retried.
    */
   public F onFailureAsync(CheckedConsumer<? extends Throwable> listener, ExecutorService executor) {
-    registry().failure().add(Listeners.of(Listeners.<R>of(listener), Assert.notNull(executor, "executor"), null));
+    registry().failure().add(Listeners.of(Listeners.<R> of(listener), Assert.notNull(executor, "executor"), null));
     return (F) this;
   }
 
@@ -308,7 +310,7 @@ public class FailsafeConfig<R, F> {
    * exceeded.
    */
   public F onRetriesExceeded(CheckedConsumer<? extends Throwable> listener) {
-    registry().retriesExceeded().add(Listeners.<R>of(listener));
+    registry().retriesExceeded().add(Listeners.<R> of(listener));
     return (F) this;
   }
 
@@ -329,8 +331,9 @@ public class FailsafeConfig<R, F> {
    * {@link RetryPolicy#withMaxDuration(long, java.util.concurrent.TimeUnit) max duration} are exceeded.
    */
   public F onRetriesExceededAsync(CheckedConsumer<? extends Throwable> listener, ExecutorService executor) {
-    registry().retriesExceeded()
-        .add(Listeners.of(Listeners.<R>of(listener), Assert.notNull(executor, "executor"), null));
+    registry()
+        .retriesExceeded()
+        .add(Listeners.of(Listeners.<R> of(listener), Assert.notNull(executor, "executor"), null));
     return (F) this;
   }
 
@@ -346,7 +349,7 @@ public class FailsafeConfig<R, F> {
    * Registers the {@code listener} to be called before an execution is retried.
    */
   public F onRetry(CheckedConsumer<? extends Throwable> listener) {
-    registry().retry().add(Listeners.<R>of(listener));
+    registry().retry().add(Listeners.<R> of(listener));
     return (F) this;
   }
 
@@ -370,7 +373,7 @@ public class FailsafeConfig<R, F> {
    * Registers the {@code listener} to be called asynchronously on the {@code executor} before an execution is retried.
    */
   public F onRetryAsync(CheckedConsumer<? extends Throwable> listener, ExecutorService executor) {
-    registry().retry().add(Listeners.of(Listeners.<R>of(listener), Assert.notNull(executor, "executor"), null));
+    registry().retry().add(Listeners.of(Listeners.<R> of(listener), Assert.notNull(executor, "executor"), null));
     return (F) this;
   }
 
@@ -415,14 +418,25 @@ public class FailsafeConfig<R, F> {
   }
 
   /**
+   * Configures the {@code policies} to be used to handle failures.
+   * 
+   * @throws NullPointerException if {@code policies} is null
+   * @throws IllegalArgumentException if {@code policies} is empty
+   */
+  public F with(FailsafePolicy... policies) {
+    Assert.notNull(policies, "policies");
+    Assert.isTrue(policies.length > 0, "At least one policy must be supplied");
+    this.policies.addAll(Arrays.asList(policies));
+    return (F) this;
+  }
+
+  /**
    * Configures the {@code circuitBreaker} to be used to control the rate of event execution.
    * 
    * @throws NullPointerException if {@code circuitBreaker} is null
-   * @throws IllegalStateException if a circuit breaker is already configured
    */
   public F with(CircuitBreaker circuitBreaker) {
-    Assert.state(this.circuitBreaker == null, "A circuit breaker has already been configured");
-    this.circuitBreaker = Assert.notNull(circuitBreaker, "circuitBreaker");
+    policies.add(Assert.notNull(circuitBreaker, "circuitBreaker"));
     return (F) this;
   }
 
@@ -440,11 +454,9 @@ public class FailsafeConfig<R, F> {
    * Configures the {@code retryPolicy} to be used for retrying failed executions.
    * 
    * @throws NullPointerException if {@code retryPolicy} is null
-   * @throws IllegalStateException if a retry policy is already configured
    */
   public F with(RetryPolicy retryPolicy) {
-    Assert.state(this.retryPolicy == RetryPolicy.NEVER, "A retry policy has already been configurd");
-    this.retryPolicy = Assert.notNull(retryPolicy, "retryPolicy");
+    policies.add(Assert.notNull(retryPolicy, "retryPolicy"));
     return (F) this;
   }
 
@@ -479,7 +491,7 @@ public class FailsafeConfig<R, F> {
    */
   public F withFallback(CheckedBiFunction<? extends R, ? extends Throwable, ? extends R> fallback) {
     Assert.state(this.fallback == null, "withFallback has already been called");
-    this.fallback = (CheckedBiFunction<R, Throwable, R>) Assert.notNull(fallback, "fallback");
+    this.fallback = FailsafePolicy.of((CheckedBiFunction<R, Throwable, R>) Assert.notNull(fallback, "fallback"));
     return (F) this;
   }
 

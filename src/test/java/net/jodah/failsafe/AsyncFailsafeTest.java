@@ -82,22 +82,22 @@ public class AsyncFailsafeTest extends AbstractFailsafeTest {
     waiter.await(3000);
     verify(service, times(3)).connect();
 
-    // Given - Fail three times
-    reset(service);
-    counter.set(0);
-    when(service.connect()).thenThrow(failures(10, new ConnectException()));
-
-    // When
-    FailsafeFuture<?> future2 = run(Failsafe.with(retryTwice).with(executor).onComplete((result, failure) -> {
-      waiter.assertNull(result);
-      waiter.assertTrue(failure instanceof ConnectException);
-      waiter.resume();
-    }), runnable);
-
-    // Then
-    assertThrows(() -> future2.get(), futureAsyncThrowables);
-    waiter.await(3000);
-    verify(service, times(3)).connect();
+//    // Given - Fail three times
+//    reset(service);
+//    counter.set(0);
+//    when(service.connect()).thenThrow(failures(10, new ConnectException()));
+//
+//    // When
+//    FailsafeFuture<?> future2 = run(Failsafe.with(retryTwice).with(executor).onComplete((result, failure) -> {
+//      waiter.assertNull(result);
+//      waiter.assertTrue(failure instanceof ConnectException);
+//      waiter.resume();
+//    }), runnable);
+//
+//    // Then
+//    assertThrows(() -> future2.get(), futureAsyncThrowables);
+//    waiter.await(3000);
+//    verify(service, times(3)).connect();
   }
 
   public void shouldRunWithExecutor() throws Throwable {
@@ -301,7 +301,7 @@ public class AsyncFailsafeTest extends AbstractFailsafeTest {
       } catch (Exception e) {
         waiter.fail(e);
       }
-    } , 100, TimeUnit.MILLISECONDS));
+    }, 100, TimeUnit.MILLISECONDS));
 
     waiter.await(5000);
   }
@@ -334,7 +334,9 @@ public class AsyncFailsafeTest extends AbstractFailsafeTest {
     Waiter waiter = new Waiter();
 
     // When
-    FailsafeFuture<Void> future = Failsafe.with(new RetryPolicy().retryWhen(null).retryOn(Exception.class))
+    FailsafeFuture<Void> future = Failsafe.with(new CircuitBreaker())
+        .with(new RetryPolicy())
+        .withFallback(false)
         .with(executor)
         .run(() -> waiter.fail("Should not execute callable since executor has been shutdown"));
 
